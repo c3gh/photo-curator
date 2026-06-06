@@ -63,18 +63,37 @@ else
     echo "CPU install complete."
 fi
 
-# ── .env setup ───────────────────────────────────────────────────────────────
+# ── Ollama check (default Stage 2 backend — local, free) ────────────────────
+echo ""
+if command -v ollama &>/dev/null; then
+    echo "Ollama found."
+    if ollama list 2>/dev/null | grep -q "llava"; then
+        echo "llava model already pulled."
+    else
+        echo "Pulling default vision model (llava, ~4.7GB)..."
+        ollama pull llava || echo "Could not pull automatically — run 'ollama pull llava' manually later."
+    fi
+else
+    echo "Ollama not found — it's the default (free, local) Stage 2 backend."
+    echo "Install it from https://ollama.com, then run:"
+    echo "  ollama pull llava"
+    echo ""
+    echo "(You can skip this if you only plan to use --use-claude or --stage1-only.)"
+fi
+
+# ── .env setup (only needed for --use-claude) ────────────────────────────────
 if [ ! -f .env ]; then
     cp .env.example .env
     echo ""
     echo "Created .env from .env.example."
+    echo "(Only needed if you plan to use --use-claude — Ollama needs no API key.)"
     echo ""
-    read -r -p "Paste your ANTHROPIC_API_KEY now (or press Enter to set it manually later): " API_KEY
+    read -r -p "Paste your ANTHROPIC_API_KEY now (or press Enter to skip): " API_KEY
     if [ -n "$API_KEY" ]; then
         sed -i "s|your_key_here|$API_KEY|" .env
         echo "API key saved to .env"
     else
-        echo "Skipped. Open .env and set ANTHROPIC_API_KEY before running Stage 2."
+        echo "Skipped. Set ANTHROPIC_API_KEY in .env later if you want to use --use-claude."
     fi
 else
     echo ".env already exists — not overwriting."
@@ -84,10 +103,14 @@ fi
 echo ""
 echo "=== Setup complete ==="
 echo ""
-echo "To run:"
+echo "To run (uses local Ollama by default — no API cost):"
 echo "  source $VENV_DIR/bin/activate"
+echo "  ollama serve &      # if not already running"
 echo "  python main.py --input /path/to/photos --location \"Scotland\""
 echo ""
-echo "To test Stage 1 only (no API key needed):"
+echo "To use the Claude API instead (higher quality, costs API credits):"
+echo "  python main.py --input /path/to/photos --location \"Scotland\" --use-claude"
+echo ""
+echo "To test Stage 1 only (no vision model needed):"
 echo "  python main.py --input /path/to/photos --location \"Scotland\" --stage1-only"
 echo ""

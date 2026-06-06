@@ -10,13 +10,23 @@ from curator import pipeline
 
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(
-        description="Select the best N photos from a large folder using CLIP + Claude vision.",
+        description="Select the best N photos from a large folder using CLIP + Ollama vision.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
   python main.py --input ~/Photos/Scotland --location "Scotland"
   python main.py --input ~/Photos/Japan --location "Japan" --count 20 --shortlist 300
   python main.py --input ~/Photos/Scotland --location "Scotland" --copy-to ./selected
+
+  # Use Claude API instead of Ollama (requires ANTHROPIC_API_KEY + paid credits):
+  python main.py --input ~/Photos/Scotland --location "Scotland" --use-claude
+  python main.py --input ~/Photos/Scotland --location "Scotland" --use-claude --model claude-opus-4-8
+
+  # Override Ollama model:
+  python main.py --input ~/Photos/Scotland --location "Scotland" --model llava:13b
+
+  # Stage 1 only (no vision model needed):
+  python main.py --input ~/Photos/Scotland --location "Scotland" --stage1-only
         """,
     )
     p.add_argument("--input", required=True, help="Path to the folder of photos")
@@ -26,7 +36,7 @@ Examples:
         "--shortlist",
         type=int,
         default=150,
-        help="Stage 1 shortlist size before Claude review (default: 150)",
+        help="Stage 1 shortlist size before vision review (default: 150)",
     )
     p.add_argument(
         "--copy-to",
@@ -39,17 +49,26 @@ Examples:
         help="Path for the JSON results file (default: results/selection.json)",
     )
     p.add_argument(
-        "--model",
-        default="claude-sonnet-4-6",
+        "--use-claude",
+        action="store_true",
         help=(
-            "Claude model for Stage 2 (default: claude-sonnet-4-6). "
-            "Use claude-haiku-4-5-20251001 for cheapest, claude-opus-4-8 for best quality."
+            "Use the Claude API for Stage 2 instead of Ollama. "
+            "Requires ANTHROPIC_API_KEY and separate API credits (not included in Claude Pro/Max)."
+        ),
+    )
+    p.add_argument(
+        "--model",
+        default=None,
+        help=(
+            "Override the vision model. "
+            "Ollama default: llava. Claude default: claude-sonnet-4-6. "
+            "Examples: --model llava:13b  or  --model claude-opus-4-8"
         ),
     )
     p.add_argument(
         "--stage1-only",
         action="store_true",
-        help="Run Stage 1 only (no Claude API call) — useful for testing on CPU",
+        help="Run Stage 1 only (no vision model) — useful for a quick quality-ranked shortlist",
     )
     return p.parse_args()
 
@@ -61,8 +80,8 @@ def main() -> None:
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
     if args.stage1_only:
-        from curator.utils import collect_images
         from curator import stage1_filter
+        from curator.utils import collect_images
 
         paths = collect_images(args.input)
         if not paths:
@@ -90,6 +109,7 @@ def main() -> None:
         location=args.location,
         count=args.count,
         shortlist_size=args.shortlist,
+        use_claude=args.use_claude,
         model=args.model,
     )
 

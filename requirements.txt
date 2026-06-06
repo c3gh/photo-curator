@@ -8,5 +8,8 @@ scikit-learn==1.5.0
 tqdm==4.66.4
 python-dotenv==1.0.1
 
-# Claude API
+# Ollama (local vision model — default Stage 2 backend)
+ollama==0.2.1
+
+# Claude API (optional — only needed with --use-claude)
 anthropic==0.28.0
