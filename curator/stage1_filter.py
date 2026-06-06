@@ -63,6 +63,15 @@ def _load_model(device: torch.device):
     return model, processor
 
 
+def _projected_embedding(output) -> torch.Tensor:
+    """
+    transformers >= 5 wraps get_text_features/get_image_features output in
+    BaseModelOutputWithPooling with the projected embedding at .pooler_output;
+    older versions return the projected tensor directly. Handle both.
+    """
+    return output.pooler_output if hasattr(output, "pooler_output") else output
+
+
 def _embed_text_prompts(
     prompts: list[str],
     model: CLIPModel,
@@ -71,7 +80,7 @@ def _embed_text_prompts(
 ) -> np.ndarray:
     inputs = processor(text=prompts, return_tensors="pt", padding=True).to(device)
     with torch.no_grad():
-        features = model.get_text_features(**inputs)
+        features = _projected_embedding(model.get_text_features(**inputs))
     return normalize(features.cpu().numpy())
 
 
@@ -105,7 +114,7 @@ def _score_and_embed_images(
 
         inputs = processor(images=images, return_tensors="pt", padding=True).to(device)
         with torch.no_grad():
-            features = model.get_image_features(**inputs)
+            features = _projected_embedding(model.get_image_features(**inputs))
 
         embeddings = normalize(features.cpu().numpy())  # (B, D)
 
