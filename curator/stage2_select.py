@@ -20,7 +20,7 @@ load_dotenv()
 
 VISION_THUMBNAIL_SIZE = 768
 BATCH_SIZE = 20  # images per Claude call — stays well within context limits
-CLAUDE_MODEL = "claude-opus-4-8"
+CLAUDE_MODEL = "claude-sonnet-4-6"  # override with --model flag for cheaper/faster runs
 
 
 @dataclass
@@ -70,6 +70,7 @@ def _call_claude(
     images_b64: list[str | None],
     prompt: str,
     offset: int,
+    model: str,
 ) -> list[dict]:
     content = [{"type": "text", "text": prompt}]
 
@@ -90,7 +91,7 @@ def _call_claude(
         })
 
     response = client.messages.create(
-        model=CLAUDE_MODEL,
+        model=model,
         max_tokens=2048,
         messages=[{"role": "user", "content": content}],
     )
@@ -133,6 +134,7 @@ def run(
     shortlist: list[ScoredImage],
     location: str,
     count: int = 10,
+    model: str = CLAUDE_MODEL,
 ) -> list[RankedImage]:
     api_key = os.environ.get("ANTHROPIC_API_KEY")
     if not api_key:
@@ -152,7 +154,7 @@ def run(
         images_b64 = [
             image_to_base64(item.path, VISION_THUMBNAIL_SIZE) for item in batch_items
         ]
-        results = _call_claude(client, images_b64, prompt, real_offset)
+        results = _call_claude(client, images_b64, prompt, real_offset, model)
         all_results.extend(results)
 
     # Map results back to ScoredImage objects

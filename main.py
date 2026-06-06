@@ -39,6 +39,14 @@ Examples:
         help="Path for the JSON results file (default: results/selection.json)",
     )
     p.add_argument(
+        "--model",
+        default="claude-sonnet-4-6",
+        help=(
+            "Claude model for Stage 2 (default: claude-sonnet-4-6). "
+            "Use claude-haiku-4-5-20251001 for cheapest, claude-opus-4-8 for best quality."
+        ),
+    )
+    p.add_argument(
         "--stage1-only",
         action="store_true",
         help="Run Stage 1 only (no Claude API call) — useful for testing on CPU",
@@ -82,6 +90,7 @@ def main() -> None:
         location=args.location,
         count=args.count,
         shortlist_size=args.shortlist,
+        model=args.model,
     )
 
     results = [

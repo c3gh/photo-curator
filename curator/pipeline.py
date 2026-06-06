@@ -9,6 +9,7 @@ def run(
     location: str,
     count: int = 10,
     shortlist_size: int = 150,
+    model: str = stage2_select.CLAUDE_MODEL,
 ) -> list[stage2_select.RankedImage]:
     print(f"\n=== photo-curator | {location} | top {count} ===\n")
 
@@ -18,6 +19,6 @@ def run(
     print(f"Found {len(paths)} images in {input_dir}")
 
     shortlist = stage1_filter.run(paths, shortlist_size=shortlist_size)
-    selected = stage2_select.run(shortlist, location=location, count=count)
+    selected = stage2_select.run(shortlist, location=location, count=count, model=model)
 
     return selected
