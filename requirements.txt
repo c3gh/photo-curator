@@ -1,15 +1,16 @@
-# Core ML — CPU-only torch (override with requirements-gpu.txt on CUDA machines)
-torch==2.3.1
-torchvision==0.18.1
-transformers==4.41.2
-Pillow==10.3.0
-numpy==1.26.4
-scikit-learn==1.5.0
-tqdm==4.66.4
-python-dotenv==1.0.1
+# Core ML — single requirements file for all machines.
+# Modern PyTorch wheels auto-detect CUDA at runtime (torch.cuda.is_available()),
+# so the same install works on a CPU laptop and a GPU desktop without separate files.
+torch>=2.9.0
+transformers>=4.46.0
+Pillow>=10.3.0
+numpy>=1.26.4
+scikit-learn>=1.5.0
+tqdm>=4.66.4
+python-dotenv>=1.0.1
 
-# Ollama (local vision model — default Stage 2 backend)
-ollama==0.2.1
+# Local vision model (default Stage 2 backend)
+ollama>=0.2.1
 
 # Claude API (optional — only needed with --use-claude)
-anthropic==0.28.0
+anthropic>=0.28.0

@@ -18,18 +18,13 @@ cd photo-curator
 bash setup.sh
 ```
 
-`setup.sh` detects your GPU, creates a virtualenv, installs the right dependencies, checks for Ollama and pulls the default vision model (`llava`, ~4.7GB). Re-run it on a different machine and it adapts automatically — that's the whole point.
+`setup.sh` creates a virtualenv, installs dependencies, checks for Ollama, and pulls the default vision model (`llava`, ~4.7GB). One requirements file works on both a CPU laptop and a GPU desktop — modern PyTorch wheels detect CUDA at runtime (`torch.cuda.is_available()`), so there's nothing to switch manually. Re-run it on a different machine and it just works.
 
 Manual setup:
 ```bash
 python -m venv .venv
 source .venv/bin/activate
-
-# CPU (laptop):
 pip install -r requirements.txt
-
-# GPU (NVIDIA desktop, CUDA 12.1):
-pip install -r requirements-gpu.txt
 
 # Install Ollama from https://ollama.com, then:
 ollama pull llava

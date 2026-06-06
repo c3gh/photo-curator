@@ -1,9 +1,13 @@
 #!/usr/bin/env bash
 # photo-curator setup
 # Run once on any machine: bash setup.sh
-# Detects NVIDIA GPU automatically and installs the right torch variant.
+# Single requirements.txt works everywhere — modern PyTorch wheels detect
+# CUDA at runtime, so no separate CPU/GPU install path is needed.
 
 set -euo pipefail
+
+# Always operate relative to this script's location, regardless of cwd
+cd "$(dirname "${BASH_SOURCE[0]}")"
 
 VENV_DIR=".venv"
 PYTHON="${PYTHON:-python3}"
@@ -41,27 +45,20 @@ fi
 source "$VENV_DIR/bin/activate"
 pip install --upgrade pip --quiet
 
-# ── GPU detection ────────────────────────────────────────────────────────────
-USE_GPU=false
+# ── GPU detection (informational only — torch picks it up automatically) ────
 if command -v nvidia-smi &>/dev/null; then
     GPU_NAME=$(nvidia-smi --query-gpu=name --format=csv,noheader 2>/dev/null | head -1 || true)
     if [ -n "$GPU_NAME" ]; then
-        USE_GPU=true
-        echo "NVIDIA GPU detected: $GPU_NAME"
+        echo "NVIDIA GPU detected: $GPU_NAME — torch will use it automatically."
     fi
+else
+    echo "No NVIDIA GPU detected — will run on CPU (slower but fully functional)."
 fi
 
 # ── Dependencies ─────────────────────────────────────────────────────────────
-if [ "$USE_GPU" = true ]; then
-    echo "Installing GPU requirements (CUDA 12.1)..."
-    pip install -r requirements-gpu.txt --quiet
-    echo "GPU install complete."
-else
-    echo "No NVIDIA GPU detected — installing CPU requirements."
-    echo "(On your desktop, re-run this script to switch to GPU automatically.)"
-    pip install -r requirements.txt --quiet
-    echo "CPU install complete."
-fi
+echo "Installing dependencies (this can take a few minutes)..."
+pip install -r requirements.txt --quiet
+echo "Install complete."
 
 # ── Ollama check (default Stage 2 backend — local, free) ────────────────────
 echo ""
