@@ -6,6 +6,7 @@ Reduces a large image folder to a shortlist of high-quality candidates
 spread across content clusters (landscapes, architecture, people, etc.).
 """
 
+import json
 import math
 from dataclasses import dataclass
 from pathlib import Path
@@ -42,6 +43,54 @@ class ScoredImage:
     aesthetic_score: float
     embedding: np.ndarray
     cluster: int = -1
+
+
+# ── Shortlist cache ──────────────────────────────────────────────────────────
+# Stage 1 can take well over an hour on CPU for large libraries. Caching its
+# output means a Stage 2 failure (Ollama down, wrong model, network blip)
+# doesn't force a full rescore — the shortlist is reused if the inputs match.
+
+CACHE_PATH = Path("results") / "stage1_cache.json"
+
+
+def _cache_key(input_dir: str, shortlist_size: int, image_count: int) -> dict:
+    return {
+        "input_dir": str(Path(input_dir).resolve()),
+        "shortlist_size": shortlist_size,
+        "image_count": image_count,
+    }
+
+
+def _load_cache(key: dict) -> list[ScoredImage] | None:
+    if not CACHE_PATH.exists():
+        return None
+    try:
+        data = json.loads(CACHE_PATH.read_text())
+    except (OSError, json.JSONDecodeError):
+        return None
+    if data.get("key") != key:
+        return None
+    return [
+        ScoredImage(
+            path=Path(item["path"]),
+            aesthetic_score=item["aesthetic_score"],
+            embedding=np.empty(0),  # not needed past Stage 1 — clustering is already done
+            cluster=item["cluster"],
+        )
+        for item in data.get("shortlist", [])
+    ]
+
+
+def _save_cache(key: dict, shortlist: list[ScoredImage]) -> None:
+    CACHE_PATH.parent.mkdir(parents=True, exist_ok=True)
+    data = {
+        "key": key,
+        "shortlist": [
+            {"path": str(item.path), "aesthetic_score": item.aesthetic_score, "cluster": item.cluster}
+            for item in shortlist
+        ],
+    }
+    CACHE_PATH.write_text(json.dumps(data, indent=2))
 
 
 def _get_device() -> torch.device:
@@ -173,7 +222,19 @@ def _select_shortlist(
 def run(
     paths: list[Path],
     shortlist_size: int = 150,
+    input_dir: str | None = None,
+    use_cache: bool = True,
 ) -> list[ScoredImage]:
+    cache_key = None
+    if input_dir is not None:
+        cache_key = _cache_key(input_dir, shortlist_size, len(paths))
+        if use_cache:
+            cached = _load_cache(cache_key)
+            if cached is not None:
+                print(f"[Stage 1] Reusing cached shortlist ({len(cached)} images) — skipping CLIP scoring.")
+                print(f"[Stage 1] (Delete {CACHE_PATH} or pass --refresh-cache to rescore from scratch.)")
+                return cached
+
     device = _get_device()
     model, processor = _load_model(device)
 
@@ -193,4 +254,9 @@ def run(
 
     shortlist = _select_shortlist(scored, actual_shortlist, n_clusters)
     print(f"[Stage 1] Shortlisted {len(shortlist)} candidates from {len(scored)} readable images.")
+
+    if cache_key is not None:
+        _save_cache(cache_key, shortlist)
+        print(f"[Stage 1] Cached shortlist to {CACHE_PATH} for reuse if Stage 2 needs a retry.")
+
     return shortlist

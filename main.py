@@ -27,6 +27,9 @@ Examples:
 
   # Stage 1 only (no vision model needed):
   python main.py --input ~/Photos/Scotland --location "Scotland" --stage1-only
+
+  # Force a full Stage 1 rescore, ignoring the cached shortlist:
+  python main.py --input ~/Photos/Scotland --location "Scotland" --refresh-cache
         """,
     )
     p.add_argument("--input", required=True, help="Path to the folder of photos")
@@ -70,6 +73,15 @@ Examples:
         action="store_true",
         help="Run Stage 1 only (no vision model) — useful for a quick quality-ranked shortlist",
     )
+    p.add_argument(
+        "--refresh-cache",
+        action="store_true",
+        help=(
+            "Ignore the cached Stage 1 shortlist and rescore from scratch. "
+            "By default, a matching cached shortlist (results/stage1_cache.json) is reused — "
+            "this avoids redoing a long CPU-bound CLIP pass if Stage 2 fails."
+        ),
+    )
     return p.parse_args()
 
 
@@ -88,7 +100,12 @@ def main() -> None:
             print(f"No supported images found in: {args.input}", file=sys.stderr)
             sys.exit(1)
         print(f"Found {len(paths)} images")
-        shortlist = stage1_filter.run(paths, shortlist_size=args.shortlist)
+        shortlist = stage1_filter.run(
+            paths,
+            shortlist_size=args.shortlist,
+            input_dir=args.input,
+            use_cache=not args.refresh_cache,
+        )
         results = [
             {
                 "rank": i + 1,
@@ -104,13 +121,14 @@ def main() -> None:
         print(f"\nStage 1 shortlist written to {output_path}")
         return
 
-    selected = pipeline.run(
+    result = pipeline.run(
         input_dir=args.input,
         location=args.location,
         count=args.count,
         shortlist_size=args.shortlist,
         use_claude=args.use_claude,
         model=args.model,
+        refresh_cache=args.refresh_cache,
     )
 
     results = [
@@ -124,7 +142,7 @@ def main() -> None:
             "tags": img.tags,
             "reasoning": img.reasoning,
         }
-        for img in sorted(selected, key=lambda x: x.rank)
+        for img in sorted(result.selected, key=lambda x: x.rank)
     ]
 
     output_path.write_text(json.dumps(results, indent=2))
@@ -138,6 +156,16 @@ def main() -> None:
             target = dest / f"{item['rank']:02d}_{src.name}"
             shutil.copy2(src, target)
         print(f"Selected files copied to {dest}")
+
+        # Also copy the full Stage 1 shortlist into a subfolder so you can browse
+        # the candidates that almost made the cut, not just the final picks.
+        shortlist_dest = dest / "shortlist"
+        shortlist_dest.mkdir(parents=True, exist_ok=True)
+        ranked_shortlist = sorted(result.shortlist, key=lambda x: x.aesthetic_score, reverse=True)
+        for i, item in enumerate(ranked_shortlist, 1):
+            target = shortlist_dest / f"{i:03d}_{item.path.name}"
+            shutil.copy2(item.path, target)
+        print(f"Stage 1 shortlist ({len(ranked_shortlist)} images) copied to {shortlist_dest}")
 
     print("\n--- Final Selection ---")
     for item in results:

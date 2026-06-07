@@ -44,9 +44,22 @@ python main.py --input /path/to/photos --location "Scotland" --copy-to ./selecte
 
 # Stage 1 only — quality-ranked shortlist, no vision model needed
 python main.py --input /path/to/photos --location "Scotland" --stage1-only
+
+# Force a full Stage 1 rescore, ignoring the cached shortlist
+python main.py --input /path/to/photos --location "Scotland" --refresh-cache
 ```
 
 Results are written to `results/selection.json` with paths, scores, content clusters, and reasoning for each pick.
+
+With `--copy-to`, the final picks are copied into the target directory, and the full Stage 1 shortlist is also copied into a `shortlist/` subfolder — so you can browse the candidates that almost made the cut, not just the final selections.
+
+## Stage 1 caching
+
+Stage 1 (CLIP scoring) is CPU-bound and can take well over an hour on a large library. To avoid losing that work if Stage 2 fails (e.g. Ollama isn't running), the resulting shortlist is cached to `results/stage1_cache.json`, keyed on the input directory, shortlist size, and image count.
+
+On a matching re-run, the cached shortlist is reused and Stage 1 is skipped entirely (look for `[Stage 1] Reusing cached shortlist…` in the output). Pass `--refresh-cache` to ignore the cache and rescore from scratch, or just delete `results/stage1_cache.json`.
+
+Before the (potentially long) Stage 1 pass starts, the pipeline also runs a preflight check on the Stage 2 backend — verifying Ollama is reachable, or that `ANTHROPIC_API_KEY` is set for `--use-claude` — so a misconfigured backend fails immediately instead of after an hour of scoring.
 
 ## Using the Claude API instead of Ollama
 

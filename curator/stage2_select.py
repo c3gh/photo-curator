@@ -30,6 +30,36 @@ CLAUDE_BATCH_SIZE = 20
 VISION_THUMBNAIL_SIZE = 768
 
 
+def resolve_model(use_claude: bool, model: str | None) -> str:
+    return model or (CLAUDE_DEFAULT_MODEL if use_claude else OLLAMA_DEFAULT_MODEL)
+
+
+def preflight_check(use_claude: bool, model: str) -> None:
+    """
+    Verify Stage 2's backend is reachable BEFORE the long Stage 1 pass runs —
+    failing fast here is much better than discovering Ollama isn't running
+    after an hour-plus of CPU-bound CLIP scoring.
+    """
+    if use_claude:
+        if not os.environ.get("ANTHROPIC_API_KEY"):
+            raise EnvironmentError(
+                "ANTHROPIC_API_KEY not set.\n"
+                "Add it to .env or export it. Note: the Claude API requires separate paid "
+                "credits at console.anthropic.com — it is not covered by Claude Pro/Max."
+            )
+        return
+
+    try:
+        import ollama
+        ollama.list()
+    except Exception:
+        raise RuntimeError(
+            "Cannot reach Ollama — start it with: ollama serve\n"
+            f"Then make sure the model is pulled: ollama pull {model}\n"
+            "(Install Ollama from https://ollama.com if you haven't already.)"
+        )
+
+
 @dataclass
 class RankedImage:
     path: Path
@@ -237,7 +267,7 @@ def run(
     use_claude: bool = False,
     model: str | None = None,
 ) -> list[RankedImage]:
-    resolved_model = model or (CLAUDE_DEFAULT_MODEL if use_claude else OLLAMA_DEFAULT_MODEL)
+    resolved_model = resolve_model(use_claude, model)
 
     raw_results = (
         _run_claude(shortlist, location, resolved_model)
